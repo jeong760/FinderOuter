@@ -1,0 +1,67 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:FinderOuter.ViewModels;assembly=FinderOuter"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+             x:CompileBindings="True"
+             x:DataType="vm:MissingBip32PathViewModel"
+             x:Class="FinderOuter.Views.MissingBip32PathView">
+
+  <Design.DataContext>
+    <vm:MissingBip32PathViewModel/>
+  </Design.DataContext>
+
+  <Grid ColumnDefinitions="*,auto" RowDefinitions="auto,auto,auto">
+    <TextBox Text="{Binding XKey}"
+             FontFamily="{Binding CjkFont}"
+             Watermark="Enter mnemonic or extended key here"
+             Height="86"
+             Grid.Column="0"
+             Grid.Row="0"/>
+    <StackPanel Orientation="Vertical" Grid.Column="1" Grid.Row="0">
+      <ComboBox ItemsSource="{Binding InputTypeList}"
+                SelectedItem="{Binding SelectedInputType}">
+        <ComboBox.ItemTemplate>
+          <DataTemplate>
+            <TextBlock Text="{Binding Value}"
+                       ToolTip.Tip="{Binding Description}"/>
+          </DataTemplate>
+        </ComboBox.ItemTemplate>
+      </ComboBox>
+
+      <ComboBox ItemsSource="{Binding WordListsList}"
+                SelectedItem="{Binding SelectedWordListType}"
+                IsVisible="{Binding IsMnemonic}"/>
+    </StackPanel>
+
+    <TextBox Text="{Binding PassPhrase}"
+             Watermark="PassPhrase (optional)"
+             IsVisible="{Binding IsMnemonic}"
+             Grid.Column="0"
+             Grid.Row="1"/>
+
+    <Grid ColumnDefinitions="*,auto" Grid.Column="0" Grid.Row="2">
+      <TextBox Text="{Binding CompareInput}"
+               Watermark="Additional input (preferably a private key or public key, if not enter an address)"
+               Grid.Column="0"/>
+      <NumericUpDown Text="{Binding Count}"
+                     Watermark="Number of child keys to derive"
+                     Height="47"
+                     Minimum="1"
+                     Grid.Column="1"/>
+    </Grid>
+    <ComboBox ItemsSource="{Binding CompareInputTypeList}"
+              SelectedItem="{Binding SelectedCompareInputType}"
+              Grid.Column="1"
+              Grid.Row="2">
+      <ComboBox.ItemTemplate>
+        <DataTemplate>
+          <TextBlock Text="{Binding Value}"
+                     ToolTip.Tip="{Binding Description}"/>
+        </DataTemplate>
+      </ComboBox.ItemTemplate>
+    </ComboBox>
+
+  </Grid>
+</UserControl>

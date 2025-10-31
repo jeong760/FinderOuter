@@ -8,33 +8,27 @@ using ReactiveUI;
 using System;
 using System.Diagnostics;
 using System.Numerics;
+using System.Threading.Tasks;
 
 namespace FinderOuter.Models
 {
-    public enum State
-    {
-        Ready,
-        Working,
-        Paused,
-        Stopped,
-        FinishedSuccess,
-        FinishedFail
-    }
-
     public class Report : ReactiveObject, IReport
     {
-        public Report()
+        public Report() : this(Dispatcher.UIThread)
         {
-            UIThread = Dispatcher.UIThread;
         }
 
         public Report(IDispatcher dispatcher)
         {
             UIThread = dispatcher;
+
+            updateTimer = new System.Timers.Timer(TimeSpan.FromSeconds(3).TotalMilliseconds);
+            updateTimer.Elapsed += UpdateTimer_Elapsed;
         }
 
 
         public IDispatcher UIThread { get; set; }
+        public Settings Settings { get; set; }
 
         private State _state;
         public State CurrentState
@@ -43,7 +37,7 @@ namespace FinderOuter.Models
             set => this.RaiseAndSetIfChanged(ref _state, value);
         }
 
-        private string _msg;
+        private string _msg = string.Empty;
         public string Message
         {
             get => _msg;
@@ -70,11 +64,26 @@ namespace FinderOuter.Models
 
         public BigInteger Total { get; private set; }
 
-        public void SetTotal(BigInteger value) => Total = value;
+        public void SetTotal(BigInteger value)
+        {
+            Total = value;
+            AddMessageSafe($"Total number of permutations to check: {Total:n0}");
+        }
+
         public void SetTotal(int value, int exponent)
         {
-            Total = BigInteger.Pow(value, exponent);
-            AddMessageSafe($"Total number of permutations to check: {Total:n0}");
+            SetTotal(BigInteger.Pow(value, exponent));
+        }
+
+        public ParallelOptions BuildParallelOptions()
+        {
+            ParallelOptions result = new();
+            if (Settings is not null)
+            {
+                Debug.Assert(Settings.CoreCount > 0);
+                result.MaxDegreeOfParallelism = Settings.CoreCount;
+            }
+            return result;
         }
 
         public void Init()
@@ -86,7 +95,12 @@ namespace FinderOuter.Models
             percent = 0;
             IsProgressVisible = false;
             Timer.Reset();
-            Total = 0;
+            Total = BigInteger.Zero;
+
+            Speed = 0;
+            TotalChecked = 0;
+            Remaining = TimeSpan.Zero;
+            updateTimer.Stop();
         }
 
         public bool Finalize(bool success)
@@ -114,6 +128,7 @@ namespace FinderOuter.Models
 
             CurrentState = FoundAnyResult ? State.FinishedSuccess : State.FinishedFail;
             Progress = 100;
+            updateTimer.Stop();
             return FoundAnyResult;
         }
 
@@ -132,7 +147,7 @@ namespace FinderOuter.Models
         /// <param name="msg"></param>
         public void AddMessageSafe(string msg)
         {
-            UIThread.InvokeAsync(() => Message += string.IsNullOrEmpty(Message) ? msg : $"{Environment.NewLine}{msg}");
+            UIThread.Post(() => Message += string.IsNullOrEmpty(Message) ? msg : $"{Environment.NewLine}{msg}");
         }
 
         public bool Fail(string msg)
@@ -150,7 +165,7 @@ namespace FinderOuter.Models
         }
 
 
-        private string GetKPS(BigInteger totalKeys, double totalSecond)
+        private static string GetKPS(BigInteger totalKeys, double totalSecond)
         {
             return totalSecond < 1 ? "k/s= ∞" : $"k/s= {totalKeys / new BigInteger(totalSecond):n0}";
         }
@@ -164,7 +179,8 @@ namespace FinderOuter.Models
         {
             AddMessageSafe("Running in parallel.");
             percent = (double)100 / splitSize;
-            UIThread.InvokeAsync(() => IsProgressVisible = true);
+            UIThread.Post(() => IsProgressVisible = true);
+            updateTimer.Start();
         }
 
         private readonly object lockObj = new();
@@ -173,6 +189,54 @@ namespace FinderOuter.Models
             lock (lockObj)
             {
                 Progress += percent;
+            }
+        }
+
+        private double _speed;
+        public double Speed
+        {
+            get => _speed;
+            set => this.RaiseAndSetIfChanged(ref _speed, value);
+        }
+
+        private double _totCh;
+        public double TotalChecked
+        {
+            get => _totCh;
+            set => this.RaiseAndSetIfChanged(ref _totCh, value);
+        }
+
+        private TimeSpan _rem;
+        public TimeSpan Remaining
+        {
+            get => _rem;
+            set => this.RaiseAndSetIfChanged(ref _rem, value);
+        }
+
+
+        private readonly System.Timers.Timer updateTimer;
+
+        private void UpdateTimer_Elapsed(object sender, System.Timers.ElapsedEventArgs e)
+        {
+            if (Progress is > 0 and <= 100)
+            {
+                try
+                {
+                    TotalChecked = (double)Total * Progress / 100;
+                    double time = Timer.Elapsed.TotalSeconds;
+                    if (time != 0 && TotalChecked != 0)
+                    {
+                        Speed = TotalChecked / time;
+                        double remKeys = (double)Total - TotalChecked;
+                        Debug.Assert(remKeys >= 0);
+                        double d = remKeys / Speed;
+                        Remaining = TimeSpan.FromSeconds(d);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.Fail(ex.Message);
+                }
             }
         }
     }

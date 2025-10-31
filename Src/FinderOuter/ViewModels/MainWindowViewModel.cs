@@ -3,8 +3,9 @@
 // Distributed under the MIT software license, see the accompanying
 // file LICENCE or http://www.opensource.org/licenses/mit-license.php.
 
+using Avalonia.Input.Platform;
+using Avalonia.Platform.Storage;
 using FinderOuter.Models;
-using FinderOuter.Services;
 using ReactiveUI;
 using System;
 using System.Collections.Generic;
@@ -19,31 +20,24 @@ namespace FinderOuter.ViewModels
         {
             OptionList = new OptionVmBase[]
             {
-                new MessageSignatureViewModel(),
-                new MissingBase58ViewModel(),
-                new MissingBase16ViewModel(),
-                new MissingMiniPrivateKeyViewModel(),
-                new MissingMnemonicViewModel(),
-                new MissingMnemonicPassViewModel(),
+                new MissingBase16ViewModel(Settings),
+                new MissingBase58ViewModel(Settings),
+                new MissingMiniPrivateKeyViewModel(Settings),
+                new MissingBip38PassViewModel(Settings),
+                new CorePassViewModel(Settings),
+                new MissingMnemonicViewModel(Settings),
+                new MissingMnemonicPassViewModel(Settings),
                 new MissingBip32PathViewModel(),
                 new MissingArmoryViewModel(),
                 new MissingEncodingViewModel(),
             };
-
-            WinMan = new WindowManager();
         }
 
+        private static Version Version => Assembly.GetExecutingAssembly().GetName().Version;
 
-        public static string WindowTitle
-        {
-            get
-            {
-                Version ver = Assembly.GetExecutingAssembly().GetName().Version;
-                return $"The FinderOuter - Version {((ver.Major == 0) ? "Beta" : ver.ToString(2))}";
-            }
-        }
+        public static string WindowTitle => $"The FinderOuter - Version {((Version.Major == 0) ? "Beta" : Version.ToString(2))}";
 
-        public static string VerString => Assembly.GetExecutingAssembly().GetName().Version.ToString(4);
+        public static string VerString => Version.ToString(4);
 
         public static string DebugWarning => "Warning: Debug mode detected. Build and run in release mode for faster performance.";
 
@@ -53,6 +47,11 @@ namespace FinderOuter.ViewModels
 #else
                 false;
 #endif
+
+        public static string UnstableWarning => "Warning: You are running an unstable version. Make sure you understand the changes " +
+            "after the previous stable release.";
+
+        public static bool IsUnstable => Version.Revision != 0;
 
 
         public bool IsOptionSelected => SelectedOption is not null;
@@ -65,7 +64,7 @@ namespace FinderOuter.ViewModels
         public OptionVmBase SelectedOption
         {
             get => _selOpt;
-            private set
+            set
             {
                 if (value is not null)
                 {
@@ -90,10 +89,47 @@ namespace FinderOuter.ViewModels
             }
         }
 
-        public HelpViewModel HelpVm => new HelpViewModel();
+        public HelpViewModel HelpVm => new();
 
-        public IWindowManager WinMan { get; set; }
+        public Settings Settings { get; set; } = new();
+        public IClipboard Clipboard { get; set; }
 
-        public void OpenAbout() => WinMan.ShowDialog(new AboutViewModel());
+        private IStorageProvider _sp;
+        public IStorageProvider StorageProvider
+        {
+            get => _sp;
+            set
+            {
+                _sp = value;
+                foreach (var item in OptionList)
+                {
+                    if (item is MissingBip38PassViewModel b38)
+                    {
+                        b38.FileMan.StorageProvider = value;
+                    }
+                    else if (item is CorePassViewModel core)
+                    {
+                        core.FileMan.StorageProvider = value;
+                    }
+                }
+            }
+        }
+
+        private bool _isCap = true;
+        public bool IsCappedSettings
+        {
+            get => _isCap;
+            set => this.RaiseAndSetIfChanged(ref _isCap, value);
+        }
+
+        public void OverrideSettings()
+        {
+            IsCappedSettings = false;
+        }
+
+        public void OpenAbout()
+        {
+            WinMan.ShowDialog(new AboutViewModel(Clipboard));
+        }
     }
 }

@@ -6,6 +6,7 @@
 using Autarkysoft.Bitcoin;
 using Autarkysoft.Bitcoin.Encoders;
 using FinderOuter.Models;
+using FinderOuter.Services;
 using ReactiveUI;
 using System;
 using System.Collections.Generic;
@@ -27,30 +28,32 @@ namespace FinderOuter.ViewModels
             };
 
             IObservable<bool> isFindEnabled = this.WhenAnyValue(
-                x => x.Input,
-                (input) => !string.IsNullOrEmpty(input));
+                x => x.Text,
+                (txt) => !string.IsNullOrEmpty(txt));
 
             FindCommand = ReactiveCommand.Create(Find, isFindEnabled);
+            DecodeCommand = ReactiveCommand.Create<EncodingName>(Decode);
         }
 
 
         public override string OptionName => "Missing encoding";
         public override string Description => $"This option can be used to guess the encoding of a given string." +
-            $"{Environment.NewLine}It works by eliminating encodings and letting user decode the input with any " +
-            $"encoder to see the raw bytes.";
+            $"{Environment.NewLine}Enter the string in the TextBox below and either click Find to check it with all " +
+            $"encoders or click one of the Decode buttons below to specifically decode using that encoder. The result " +
+            $"will always show the raw bytes in hexadecimal format.";
 
 
         public IEnumerable<EncodingState> EncodingList { get; }
 
-        private string _input;
-        public string Input
+        private string _txt = string.Empty;
+        public string Text
         {
-            get => _input;
+            get => _txt;
             set
             {
-                if (_input != value)
+                if (_txt != value)
                 {
-                    this.RaiseAndSetIfChanged(ref _input, value);
+                    this.RaiseAndSetIfChanged(ref _txt, value);
                     foreach (EncodingState item in EncodingList)
                     {
                         item.Possible = Possibility.Maybe;
@@ -60,98 +63,90 @@ namespace FinderOuter.ViewModels
         }
 
 
-        private bool HasValidChars(ReadOnlySpan<char> charSet, string input)
-        {
-            bool b = true;
-
-            ReadOnlySpan<char> arr = input.AsSpan();
-            for (int i = 0; i < arr.Length; i++)
-            {
-                if (!charSet.Contains(arr[i]))
-                {
-                    Result.AddMessage($"Invalid character ({arr[i]}) found at index {i}.");
-                    b = false;
-                }
-            }
-            return b;
-        }
-
         private byte[] CheckBase16()
         {
-            string input = Input;
-            if (Input.StartsWith(Base16.Prefix))
+            string temp = Text;
+            if (Text.StartsWith(Base16.Prefix))
             {
-                input = Input.Replace(Base16.Prefix, "");
+                temp = Text.Replace(Base16.Prefix, string.Empty);
             }
 
-            if (HasValidChars(Base16.CharSet, input.ToLower()))
+            if (temp.Length % 2 != 0)
             {
-                if (Input.Length % 2 != 0)
-                {
-                    Result.AddMessage("Input length is invalid (has to be divisible by 2).");
-                }
-                else
-                {
-                    bool b = Base16.TryDecode(Input, out byte[] result);
-                    Debug.Assert(b && result != null);
-                    return result;
-                }
+                Result.AddMessage("Input length is invalid for Base-16 encoding (has to be divisible by 2).");
+                return null;
             }
-            return null;
+            else if (!InputService.CheckChars(temp, Base16.CharSet, null, out string error))
+            {
+                Result.AddMessage(error);
+                return null;
+            }
+            else
+            {
+                bool b = Base16.TryDecode(temp, out byte[] result);
+                Debug.Assert(b && result != null);
+                return result;
+            }
         }
 
         private byte[] CheckBase43()
         {
-            if (HasValidChars(Base43.CharSet, Input))
+            if (InputService.CheckChars(Text, Base43.CharSet, null, out string error))
             {
-                bool b = Base43.TryDecode(Input, out byte[] result);
+                bool b = Base43.TryDecode(Text, out byte[] result);
                 Debug.Assert(b && result != null);
                 return result;
             }
-            return null;
+            else
+            {
+                Result.AddMessage(error);
+                return null;
+            }
         }
 
         private byte[] CheckBase58(bool checksum)
         {
-            if (HasValidChars(Base58.CharSet, Input))
+            if (InputService.CheckChars(Text, Base58.CharSet, null, out string error))
             {
+                bool b;
+                byte[] result;
                 if (checksum)
                 {
-                    if (Base58.IsValidWithChecksum(Input))
+                    if (Base58.IsValidWithChecksum(Text))
                     {
-                        bool b = Base58.TryDecodeWithChecksum(Input, out byte[] result);
+                        b = Base58.TryDecodeWithChecksum(Text, out result);
                         Debug.Assert(b && result != null);
                         return result;
                     }
                     else
                     {
-                        Result.AddMessage("Input has an invalid checksum. Skipping checksum validation.");
-                        bool b = Base58.TryDecode(Input, out byte[] result);
-                        Debug.Assert(b && result != null);
-                        return result;
+                        Result.AddMessage("Input has an invalid checksum. Decoding without checksum validation.");
                     }
                 }
-                else
-                {
-                    bool b = Base58.TryDecode(Input, out byte[] result);
-                    Debug.Assert(b && result != null);
-                    return result;
-                }
+
+                b = Base58.TryDecode(Text, out result);
+                Debug.Assert(b && result != null);
+                return result;
             }
-            return null;
+            else
+            {
+                Result.AddMessage(error);
+                return null;
+            }
         }
 
+        public IReactiveCommand DecodeCommand { get; private set; }
         public void Decode(EncodingName name)
         {
             Result.Init();
-            if (string.IsNullOrEmpty(Input))
+            if (string.IsNullOrEmpty(Text))
             {
                 Result.AddMessage("Input can not be null or empty.");
                 Result.Finalize();
                 return;
             }
 
-            Result.AddMessage($"Input has {Input.Length} character{(Input.Length > 1 ? "s" : "")}.");
+            Result.AddMessage($"Input has {Text.Length} character{(Text.Length > 1 ? "s" : "")}.");
 
             try
             {
@@ -161,14 +156,14 @@ namespace FinderOuter.ViewModels
                     EncodingName.Base43 => CheckBase43(),
                     EncodingName.Base58 => CheckBase58(false),
                     EncodingName.Base58Check => CheckBase58(true),
-                    EncodingName.Base64 => Convert.FromBase64String(Input),
+                    EncodingName.Base64 => Convert.FromBase64String(Text),
                     _ => throw new NotImplementedException(),
                 };
 
                 if (ba != null)
                 {
                     Result.FoundAnyResult = true;
-                    Result.AddMessage($"Decoded data has {ba.Length} bytes.{Environment.NewLine}Data in Base-16: {ba.ToBase16()}");
+                    Result.AddMessage($"Decoded data has {ba.Length} bytes.{Environment.NewLine}Data in Base-16: 0x{ba.ToBase16()}");
                 }
             }
             catch (Exception ex)
@@ -183,7 +178,7 @@ namespace FinderOuter.ViewModels
         {
             foreach (EncodingState item in EncodingList)
             {
-                item.SetPossibility(Input);
+                item.SetPossibility(Text);
             }
         }
     }

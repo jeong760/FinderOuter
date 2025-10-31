@@ -4,11 +4,9 @@
 // file LICENCE or http://www.opensource.org/licenses/mit-license.php.
 
 using Autarkysoft.Bitcoin.Cryptography.Asymmetric.EllipticCurve;
-using Autarkysoft.Bitcoin.Cryptography.Asymmetric.KeyPairs;
+using Autarkysoft.Bitcoin.Cryptography.EllipticCurve;
 using Autarkysoft.Bitcoin.Encoders;
-using FinderOuter.Backend.ECC;
 using System;
-using System.Numerics;
 
 namespace FinderOuter.Services.Comparers
 {
@@ -17,64 +15,48 @@ namespace FinderOuter.Services.Comparers
     /// </summary>
     public class PrvToPubComparer : ICompareService
     {
-        private readonly SecP256k1 curve = new();
-        private readonly EllipticCurveCalculator calc = new();
-        protected readonly Calc calc2 = new();
-        private EllipticCurvePoint point;
+        public string CompareType => "Public key";
+        public bool IsInitialized { get; private set; }
+
         private byte[] pubBa;
 
         public bool Init(string pubHex)
         {
-            try
-            {
-                pubBa = Base16.Decode(pubHex);
-                if (PublicKey.TryRead(pubBa, out PublicKey pubKey))
-                {
-                    point = pubKey.ToPoint();
-                    return true;
-                }
-                else
-                {
-                    return false;
-                }
-            }
-            catch (Exception)
-            {
-                return false;
-            }
+            IsInitialized = Base16.TryDecode(pubHex, out pubBa) && Point.TryRead(pubBa, out _);
+            return IsInitialized;
         }
 
         public ICompareService Clone()
         {
             return new PrvToPubComparer()
             {
-                point = this.point,
                 pubBa = this.pubBa
             };
         }
 
-        public Calc Calc2 => calc2;
+        protected readonly Calc _calc = new();
+        public Calc Calc => _calc;
         public unsafe bool Compare(uint* hPt)
         {
-            var key = new Scalar(hPt, out int overflow);
-            if (overflow != 0)
+            Scalar8x32 key = new(hPt, out bool overflow);
+            if (overflow)
             {
                 return false;
             }
-            
-            Span<byte> actual = calc2.GetPubkey(key, pubBa.Length == 33);
+
+            Span<byte> actual = _calc.GetPubkey(key, pubBa.Length == 33);
             return actual.SequenceEqual(pubBa);
         }
 
         public unsafe bool Compare(ulong* hPt)
         {
-            var key = new Scalar(hPt, out int overflow);
-            if (overflow != 0)
+            Scalar8x32 key = new(hPt, out bool overflow);
+            if (overflow)
             {
                 return false;
             }
 
-            Span<byte> actual = calc2.GetPubkey(key, pubBa.Length == 33);
+            Span<byte> actual = _calc.GetPubkey(key, pubBa.Length == 33);
             return actual.SequenceEqual(pubBa);
         }
 
@@ -87,18 +69,16 @@ namespace FinderOuter.Services.Comparers
 
         public bool Compare(byte[] key)
         {
-            BigInteger kVal = new BigInteger(key, true, true);
-            if (kVal >= curve.N || kVal == 0)
+            Scalar8x32 sc = new(key, out bool overflow);
+            if (overflow)
             {
                 return false;
             }
 
-            EllipticCurvePoint actual = calc.MultiplyByG(kVal);
-            return actual == point;
+            Span<byte> actual = _calc.GetPubkey(sc, pubBa.Length == 33);
+            return actual.SequenceEqual(pubBa);
         }
 
-        public bool Compare(BigInteger key) => calc.MultiplyByG(key) == point;
-
-        public bool Compare(in EllipticCurvePoint point) => point == this.point;
+        public bool Compare(in Scalar8x32 key) => Compare(Calc.MultiplyByG(key));
     }
 }

@@ -3,7 +3,7 @@
 // Distributed under the MIT software license, see the accompanying
 // file LICENCE or http://www.opensource.org/licenses/mit-license.php.
 
-using Avalonia;
+using Avalonia.Input.Platform;
 using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.InteropServices;
@@ -12,8 +12,14 @@ namespace FinderOuter.ViewModels
 {
     public class AboutViewModel : VmWithSizeBase
     {
+        // Makes designer happy!
         public AboutViewModel()
         {
+        }
+
+        public AboutViewModel(IClipboard clipboard)
+        {
+            Clipboard = clipboard;
             // Window size has to be set or the new window that is build with WindowManager 
             // is going to have the same size as MainWindow
             Width = 600;
@@ -21,6 +27,7 @@ namespace FinderOuter.ViewModels
         }
 
 
+        public IClipboard Clipboard { get; set; }
         public string NameAndVersion => $"The FinderOuter {Assembly.GetExecutingAssembly().GetName().Version.ToString(4)}";
         public string SourceLink => "https://github.com/Coding-Enthusiast/FinderOuter";
         public string BitcointalkLink => "";
@@ -32,15 +39,19 @@ namespace FinderOuter.ViewModels
 
         private const string Bip21Extras = "?label=Coding-Enthusiast&message=Donation%20for%20FinderOuter%20project";
 
-
-        public void Copy(int i)
+        public async void Copy(int i)
         {
-            Application.Current.Clipboard.SetTextAsync(i == 1 ? DonationAddr1 : DonationAddr2);
+            if (Clipboard is not null)
+            {
+                await Clipboard.SetTextAsync(i == 1 ? DonationAddr1 : DonationAddr2);
+            }
         }
+        public void Copy1() => Copy(1);
+        public void Copy2() => Copy(2);
 
         // Taken from avalonia source code
         // https://github.com/AvaloniaUI/Avalonia/blob/4340831f29c2dda00cfc3993303921272fedfc61/src/Avalonia.Dialogs/AboutAvaloniaDialog.xaml
-        public static void OpenBrowser(string url)
+        public void OpenBrowser(string url)
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
             {
@@ -65,7 +76,7 @@ namespace FinderOuter.ViewModels
         {
             string escapedArgs = cmd.Replace("\"", "\\\"");
 
-            using var process = Process.Start(
+            using Process process = Process.Start(
                 new ProcessStartInfo
                 {
                     FileName = "/bin/sh",

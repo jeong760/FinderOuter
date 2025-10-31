@@ -3,16 +3,15 @@
 // Distributed under the MIT software license, see the accompanying
 // file LICENCE or http://www.opensource.org/licenses/mit-license.php.
 
-using Autarkysoft.Bitcoin.Cryptography.Asymmetric.EllipticCurve;
-using FinderOuter.Backend.ECC;
-using System.Numerics;
+using Autarkysoft.Bitcoin.Cryptography.EllipticCurve;
 
 namespace FinderOuter.Services.Comparers
 {
     public interface ICompareService
     {
-        // TODO: fix this bad name when migration is complete
-        public Calc Calc2 { get; }
+        public string CompareType { get; }
+        public bool IsInitialized { get; }
+        public Calc Calc { get; }
 
         /// <summary>
         /// Builds the private key using the <see cref="Backend.Cryptography.Hashing.Sha256Fo.hashState"/> pointer
@@ -33,7 +32,6 @@ namespace FinderOuter.Services.Comparers
         bool Init(string data);
         ICompareService Clone();
         bool Compare(byte[] key);
-        bool Compare(BigInteger key);
-        bool Compare(in EllipticCurvePoint point);
+        bool Compare(in Scalar8x32 key);
     }
 }

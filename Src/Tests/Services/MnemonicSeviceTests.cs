@@ -8,7 +8,6 @@ using Autarkysoft.Bitcoin.ImprovementProposals;
 using FinderOuter.Services;
 using System;
 using System.Text;
-using Xunit;
 
 namespace Tests.Services
 {
@@ -19,7 +18,7 @@ namespace Tests.Services
         {
             byte[] expected = Encoding.UTF8.GetBytes(" ");
             Assert.Single(expected);
-            Assert.Equal(expected[0], MnemonicSevice.SpaceByte);
+            Assert.Equal(MnemonicSevice.SpaceByte, expected[0]);
         }
 
         [Fact]
@@ -37,7 +36,7 @@ namespace Tests.Services
 
                 string bigSeed = string.Join(" ", words);
                 int expectedMaxWordLen = 0;
-                var stream = new FastStream(37831);
+                FastStream stream = new(37831);
                 for (int i = 0; i < words.Length; i++)
                 {
                     byte[] wordBa = Encoding.UTF8.GetBytes(words[i]);
@@ -61,16 +60,16 @@ namespace Tests.Services
         }
 
         [Fact]
-        public void GetSeedByteTest()
+        public void GetSeedMaxByteSizeTest()
         {
-            byte[] actual = MnemonicSevice.GetSeedByte(12, 3);
-            Assert.Equal(47, actual.Length);
+            int actual = MnemonicSevice.GetSeedMaxByteSize(12, 3);
+            Assert.Equal(47, actual);
 
-            actual = MnemonicSevice.GetSeedByte(12, 8);
-            Assert.Equal(107, actual.Length);
+            actual = MnemonicSevice.GetSeedMaxByteSize(12, 8);
+            Assert.Equal(107, actual);
 
-            actual = MnemonicSevice.GetSeedByte(24, 33);
-            Assert.Equal(815, actual.Length);
+            actual = MnemonicSevice.GetSeedMaxByteSize(24, 33);
+            Assert.Equal(815, actual);
         }
     }
 }

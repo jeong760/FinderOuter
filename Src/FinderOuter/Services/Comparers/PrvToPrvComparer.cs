@@ -4,13 +4,9 @@
 // file LICENCE or http://www.opensource.org/licenses/mit-license.php.
 
 using Autarkysoft.Bitcoin;
-using Autarkysoft.Bitcoin.Cryptography.Asymmetric.EllipticCurve;
-using Autarkysoft.Bitcoin.Cryptography.Asymmetric.KeyPairs;
-using FinderOuter.Backend;
-using FinderOuter.Backend.Cryptography.Hashing;
-using FinderOuter.Backend.ECC;
+using Autarkysoft.Bitcoin.Cryptography.EllipticCurve;
+using FinderOuter.Backend.Hashing;
 using System;
-using System.Numerics;
 
 namespace FinderOuter.Services.Comparers
 {
@@ -19,55 +15,47 @@ namespace FinderOuter.Services.Comparers
     /// </summary>
     public class PrvToPrvComparer : ICompareService
     {
-        private byte[] expected;
+        public string CompareType => "Privatekey";
+        public bool IsInitialized { get; private set; }
+
+        private byte[] expectedBytes;
+        private Scalar8x32 expectedKey;
 
         public bool Init(string data)
         {
             try
             {
                 using PrivateKey temp = new(data);
-                expected = temp.ToBytes();
-                return true;
+                expectedBytes = temp.ToBytes();
+                expectedKey = new(expectedBytes, out _);
+                IsInitialized = true;
             }
             catch (Exception)
             {
-                return false;
+                IsInitialized = false;
             }
+
+            return IsInitialized;
         }
 
         public ICompareService Clone()
         {
             return new PrvToPrvComparer()
             {
-                expected = this.expected.CloneByteArray()
+                expectedBytes = this.expectedBytes.CloneByteArray(),
+                expectedKey = this.expectedKey
             };
         }
 
-        private readonly Calc calc2 = new();
-        public Calc Calc2 => calc2;
-        public unsafe bool Compare(uint* hPt) => ((Span<byte>)expected).SequenceEqual(Sha256Fo.GetBytes(hPt));
-        public unsafe bool Compare(ulong* hPt) => ((Span<byte>)expected).SequenceEqual(Sha512Fo.GetFirst32Bytes(hPt));
+        private readonly Calc _calc = new();
+        public Calc Calc => _calc;
+        public unsafe bool Compare(uint* hPt) => ((Span<byte>)expectedBytes).SequenceEqual(Sha256Fo.GetBytes(hPt));
+        public unsafe bool Compare(ulong* hPt) => ((Span<byte>)expectedBytes).SequenceEqual(Sha512Fo.GetFirst32Bytes(hPt));
 
-        public bool Compare(byte[] key) => ((ReadOnlySpan<byte>)expected).SequenceEqual(key);
+        public bool Compare(byte[] key) => ((ReadOnlySpan<byte>)expectedBytes).SequenceEqual(key);
 
-        public bool Compare(BigInteger key)
-        {
-            byte[] ba = key.ToByteArray(true, true);
-            if (ba.Length < 32)
-            {
-                return (Compare(ba.PadLeft(32)));
-            }
-            else if (ba.Length == 32)
-            {
-                return Compare(ba);
-            }
-            else
-            {
-                return false;
-            }
-        }
+        public bool Compare(in Scalar8x32 key) => key == expectedKey;
 
         public bool Compare(in PointJacobian point) => throw new NotImplementedException();
-        public bool Compare(in EllipticCurvePoint point) => throw new NotImplementedException();
     }
 }

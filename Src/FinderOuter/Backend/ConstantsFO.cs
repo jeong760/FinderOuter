@@ -3,6 +3,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file LICENCE or http://www.opensource.org/licenses/mit-license.php.
 
+using System;
+
 namespace FinderOuter.Backend
 {
     public struct ConstantsFO
@@ -16,8 +18,8 @@ namespace FinderOuter.Backend
         public const string Base58Chars = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
         public const string Base16Chars = "0123456789abcdef";
         public const string ArmoryChars = "asdfghjkwertuion";
-        public const string Symbols = "!@#$%^&*_-+=?";
-        public const string MissingToolTip = "Onlye these symbols are accepted as a missing character: !@#$%^&*_-+=?";
+        public const string MissingSymbols = "*?-_!@#$%^&+=";
+        public const string MissingToolTip = "Replace missing item(s) with the selected symbol.";
 
         public const char PrivKeyCompChar1 = 'K';
         public const char PrivKeyCompChar2 = 'L';
@@ -44,5 +46,30 @@ namespace FinderOuter.Backend
         public const int Bip38ByteLen = 39;
         public const int Bip38Base58Len = 58;
         public const string Bip38Start = "6P";
+        public static readonly byte[] Bip38Prefix = [0x01, 0x42];
+        public static readonly byte[] Bip38PrefixECMult = [0x01, 0x43];
+
+        public static readonly string ChangedMessage = "Input is changed and the search-space needs to be re-evaluated." +
+            $"{Environment.NewLine}" +
+            $"Click Yes to reset search-space to use default values or click No to manually set search-space.";
+
+        // 123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz
+        public static readonly char[][] SimilarBase58Chars =
+        [
+            ['0', 'o', 'C', 'G', 'c'],
+            ['1', 'L', 'l'],
+            ['5', 'S', 's'],
+            ['7', 'J', 'T', 'j', 't', 'I', 'i'],
+            ['8', 'B'],
+            ['9', 'g', 'q', 'P', 'p', 'D', 'd', 'b'],
+            ['E', 'F', 'f'],
+            ['K', 'k'],
+            ['M', 'm'],
+            ['N', 'n'],
+            ['U', 'u', 'V', 'v', 'Y', 'y'],
+            ['W', 'w'],
+            ['X', 'x'],
+            ['Z', 'z'],
+        ];
     }
 }

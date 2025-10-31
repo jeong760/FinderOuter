@@ -4,9 +4,8 @@
 // file LICENCE or http://www.opensource.org/licenses/mit-license.php.
 
 using Autarkysoft.Bitcoin;
-using Autarkysoft.Bitcoin.Cryptography.Asymmetric.EllipticCurve;
-using FinderOuter.Backend.Cryptography.Hashing;
-using FinderOuter.Backend.ECC;
+using Autarkysoft.Bitcoin.Cryptography.EllipticCurve;
+using FinderOuter.Backend.Hashing;
 using System;
 
 namespace FinderOuter.Services.Comparers
@@ -26,47 +25,36 @@ namespace FinderOuter.Services.Comparers
 
         public override unsafe bool Compare(uint* hPt)
         {
-            var key = new Scalar(hPt, out int overflow);
-            if (overflow != 0)
+            Scalar8x32 key = new(hPt, out bool overflow);
+            if (overflow)
             {
                 return false;
             }
 
-            Span<byte> toHash = calc2.GetPubkey(in key, true);
+            Span<byte> toHash = _calc.GetPubkey(in key, true);
 
-            ReadOnlySpan<byte> actual = Hash160.Compress33(toHash);
+            ReadOnlySpan<byte> actual = Hash160Fo.Compress33(toHash);
             return actual.SequenceEqual(hash);
         }
 
         public override unsafe bool Compare(ulong* hPt)
         {
-            var key = new Scalar(hPt, out int overflow);
-            if (overflow != 0)
+            Scalar8x32 key = new(hPt, out bool overflow);
+            if (overflow)
             {
                 return false;
             }
 
-            Span<byte> toHash = calc2.GetPubkey(in key, true);
+            Span<byte> toHash = _calc.GetPubkey(in key, true);
 
-            ReadOnlySpan<byte> actual = Hash160.Compress33(toHash);
+            ReadOnlySpan<byte> actual = Hash160Fo.Compress33(toHash);
             return actual.SequenceEqual(hash);
         }
 
         public override bool Compare(in PointJacobian point)
         {
             Span<byte> toHash = point.ToPoint().ToByteArray(true);
-            ReadOnlySpan<byte> compHash = Hash160.Compress33(toHash);
-            return compHash.SequenceEqual(hash);
-        }
-
-        public override bool Compare(in EllipticCurvePoint point)
-        {
-            byte[] xBytes = point.X.ToByteArray(true, true);
-            byte[] toHash = new byte[33];
-            toHash[0] = point.Y.IsEven ? (byte)2 : (byte)3;
-            Buffer.BlockCopy(xBytes, 0, toHash, 33 - xBytes.Length, xBytes.Length);
-
-            ReadOnlySpan<byte> compHash = Hash160.Compress33(toHash);
+            ReadOnlySpan<byte> compHash = Hash160Fo.Compress33(toHash);
             return compHash.SequenceEqual(hash);
         }
     }

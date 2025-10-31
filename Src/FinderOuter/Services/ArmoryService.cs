@@ -5,10 +5,9 @@
 
 using Autarkysoft.Bitcoin;
 using Autarkysoft.Bitcoin.Cryptography.Asymmetric.EllipticCurve;
+using Autarkysoft.Bitcoin.Cryptography.EllipticCurve;
 using FinderOuter.Backend;
-using FinderOuter.Backend.Cryptography.Asymmetric.EllipticCurve;
-using FinderOuter.Backend.Cryptography.Hashing;
-using FinderOuter.Backend.ECC;
+using FinderOuter.Backend.Hashing;
 using FinderOuter.Models;
 using FinderOuter.Services.Comparers;
 using System;
@@ -26,16 +25,12 @@ namespace FinderOuter.Services
         public ArmoryService(IReport rep)
         {
             report = rep;
-            inputService = new InputService();
-            calc = new ECCalc();
         }
 
 
 
         private readonly IReport report;
-        private readonly InputService inputService;
-        private readonly ECCalc calc;
-        private readonly Calc calc2 = new();
+        private readonly Calc calc = new();
 
         private ICompareService comparer;
         private int[] missingIndexes;
@@ -73,7 +68,7 @@ namespace FinderOuter.Services
         }
 
 
-        private unsafe BigInteger ComputeKey(uint* pt, byte* kPt)
+        private unsafe Scalar8x32 ComputeKey(uint* pt, byte* kPt)
         {
             uint* oPt = pt + Sha256Fo.UBufferSize;
 
@@ -183,24 +178,21 @@ namespace FinderOuter.Services
             }
 
             // hPt is chain-code now
-            var key = new ReadOnlySpan<byte>(kPt, 32);
-            var scalar = new Scalar(key, out int overflow);
-            Debug.Assert(overflow == 0);
+            ReadOnlySpan<byte> key = new(kPt, 32);
+            Scalar8x32 scalar = new(key, out bool overflow);
+            Debug.Assert(!overflow);
 
-            Span<byte> pubBa = calc2.GetPubkey(scalar, false);
+            Span<byte> pubBa = calc.GetPubkey(scalar, false);
             Debug.Assert(pubBa.Length == 65);
 
             Span<byte> chainXor = Sha256Fo.CompressDouble65(pubBa);
-            for (var i = 0; i < chainXor.Length; i++)
+            for (int i = 0; i < chainXor.Length; i++)
             {
                 chainXor[i] ^= chainCode[i];
             }
 
-            // TODO: change this to UInt256
-            var A = new BigInteger(chainXor, true, true);
-            var B = new BigInteger(key, true, true);
-
-            BigInteger secexp = (A * B).Mod(N);
+            Scalar8x32 A = new(chainXor, out _);
+            Scalar8x32 secexp = scalar.Multiply(A);
             return secexp;
         }
 
@@ -275,7 +267,7 @@ namespace FinderOuter.Services
 
                             if ((pt[0] & mask2) == comp2)
                             {
-                                BigInteger secexp = ComputeKey(pt, kPt);
+                                Scalar8x32 secexp = ComputeKey(pt, kPt);
                                 if (comparer.Compare(secexp))
                                 {
                                     SetResult(kPt);
@@ -328,7 +320,7 @@ namespace FinderOuter.Services
                             kPt[(index / 2) + 16] |= (index % 2 == 0) ? (byte)(item2[i] << 4) : item2[i];
                         }
 
-                        BigInteger secexp = ComputeKey(pt, kPt);
+                        Scalar8x32 secexp = ComputeKey(pt, kPt);
                         if (comparer.Compare(secexp))
                         {
                             SetResult(kPt);
@@ -397,7 +389,7 @@ namespace FinderOuter.Services
 
                             // Second checksum is missing so we can't compute second part's hash to reject invalid
                             // keys, instead all keys must be checked using the ICompareService instance.
-                            BigInteger secexp = ComputeKey(pt, kPt);
+                            Scalar8x32 secexp = ComputeKey(pt, kPt);
                             if (comparer.Compare(secexp))
                             {
                                 SetResult(kPt);
@@ -466,7 +458,7 @@ namespace FinderOuter.Services
                         Sha256Fo.Init(pt);
                         Sha256Fo.CompressDouble16(pt);
 
-                        BigInteger secexp = ComputeKey(pt, kPt);
+                        Scalar8x32 secexp = ComputeKey(pt, kPt);
                         if (comparer.Compare(secexp))
                         {
                             SetResult(kPt);
@@ -535,7 +527,7 @@ namespace FinderOuter.Services
         {
             Debug.Assert(s.Length == 36);
 
-            var temp = new List<int>(36);
+            List<int> temp = new(36);
             for (int i = 0; i < 32; i++)
             {
                 int index = ConstantsFO.ArmoryChars.IndexOf(s[i]);
@@ -565,14 +557,14 @@ namespace FinderOuter.Services
         }
 
 
-        public async void FindMissing(string phrase, char missChar, string extra, InputType extraType)
+        public async void FindMissing(string phrase, char missChar, string comp, CompareInputType compType)
         {
             report.Init();
 
-            if (!inputService.IsMissingCharValid(missChar))
+            if (!InputService.IsMissingCharValid(missChar))
                 report.Fail("Missing character is not accepted.");
-            else if (!inputService.TryGetCompareService(extraType, extra, out comparer))
-                report.Fail($"Invalid extra input or input type {extraType}.");
+            else if (!InputService.TryGetCompareService(compType, comp, out comparer))
+                report.Fail($"Invalid extra input or input type {compType}.");
             else if (string.IsNullOrWhiteSpace(phrase))
                 report.Fail("Recovery phrase can not be null or empty.");
             else

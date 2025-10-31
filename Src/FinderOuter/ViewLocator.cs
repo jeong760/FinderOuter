@@ -10,11 +10,12 @@ using System;
 
 namespace FinderOuter
 {
+    [Obsolete]
     public class ViewLocator : IDataTemplate
     {
         public bool SupportsRecycling => false;
 
-        public IControl Build(object data)
+        public Control Build(object data)
         {
             string name = data.GetType().FullName.Replace("ViewModel", "View");
             Type type = Type.GetType(name);

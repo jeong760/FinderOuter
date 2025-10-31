@@ -3,13 +3,13 @@
 // Distributed under the MIT software license, see the accompanying
 // file LICENCE or http://www.opensource.org/licenses/mit-license.php.
 
+using Autarkysoft.Bitcoin;
+using Autarkysoft.Bitcoin.Cryptography.EllipticCurve;
 using Autarkysoft.Bitcoin.ImprovementProposals;
-using FinderOuter.Backend;
-using FinderOuter.Backend.Cryptography.Asymmetric.EllipticCurve;
-using FinderOuter.Backend.Cryptography.Hashing;
-using FinderOuter.Backend.ECC;
+using FinderOuter.Backend.Hashing;
 using FinderOuter.Models;
 using FinderOuter.Services.Comparers;
+using FinderOuter.Services.SearchSpaces;
 using System;
 using System.Diagnostics;
 using System.Linq;
@@ -19,33 +19,17 @@ using System.Threading.Tasks;
 
 namespace FinderOuter.Services
 {
-    [Flags]
-    public enum PasswordType : ulong
-    {
-        None = 0,
-        UpperCase = 1 << 0,
-        LowerCase = 1 << 1,
-        Numbers = 1 << 2,
-        Symbols = 1 << 3,
-    }
-
     public class MnemonicExtensionService
     {
         public MnemonicExtensionService(IReport rep)
         {
             report = rep;
-            inputService = new InputService();
-            calc = new ECCalc();
         }
 
 
         private readonly IReport report;
-        private readonly InputService inputService;
-        private readonly ECCalc calc;
-
         private BIP0032Path path;
         private ICompareService comparer;
-
 
 
         public unsafe bool SetBip32(ulong* bigBuffer, ICompareService comparer)
@@ -102,13 +86,13 @@ namespace FinderOuter.Services
             oPt[14] = 0x5c5c5c5c5c5c5c5cU;
             oPt[15] = 0x5c5c5c5c5c5c5c5cU;
 
-            var sclrParent = new Scalar(hPt, out int overflow);
-            if (overflow != 0)
+            Scalar8x32 sclrParent = new(hPt, out bool overflow);
+            if (overflow)
             {
                 return false;
             }
 
-            foreach (var index in path.Indexes)
+            foreach (uint index in path.Indexes)
             {
                 if ((index & 0x80000000) != 0) // IsHardened
                 {
@@ -125,7 +109,7 @@ namespace FinderOuter.Services
                 }
                 else
                 {
-                    Span<byte> pubkeyBytes = comparer.Calc2.GetPubkey(sclrParent, true);
+                    Span<byte> pubkeyBytes = comparer.Calc.GetPubkey(sclrParent, true);
                     fixed (byte* pubXPt = &pubkeyBytes[0])
                     {
                         wPt[0] = (ulong)pubXPt[0] << 56 |
@@ -213,7 +197,7 @@ namespace FinderOuter.Services
                 Sha512Fo.Compress192SecondBlock(hPt, wPt);
 
                 // New private key is (parentPrvKey + int(hPt)) % order
-                sclrParent = sclrParent.Add(new Scalar(hPt, out _), out _);
+                sclrParent = sclrParent.Add(new Scalar8x32(hPt, out _), out _);
             }
 
             // Child extended key (private key + chianCode) should be set by adding the index to the end of the Path
@@ -389,7 +373,7 @@ namespace FinderOuter.Services
                 fixed (byte* dPt = &salt[0], valPt = &allValues[0])
                 fixed (ulong* iPt = &pads[0], oPt = &pads[Sha512Fo.HashStateSize])
                 {
-                    foreach (var val in allValues)
+                    foreach (byte val in allValues)
                     {
                         dPt[8] = val;
 
@@ -469,7 +453,8 @@ namespace FinderOuter.Services
             else
             {
                 report.SetProgressStep(allValues.Length);
-                Parallel.For(0, allValues.Length,
+                ParallelOptions opts = report.BuildParallelOptions();
+                Parallel.For(0, allValues.Length, opts,
                     (firstItem, state) => LoopBip39(pads, ParallelSalt(salt, allValues[firstItem]), allValues, passLength, state));
             }
         }
@@ -485,7 +470,7 @@ namespace FinderOuter.Services
             else
             {
                 string[] words = mnemonic.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                if (!MnemonicSevice.allowedWordLengths.Contains(words.Length))
+                if (!MnemonicSearchSpace.allowedWordLengths.Contains(words.Length))
                 {
                     return report.Fail("Invalid mnemonic length.");
                 }
@@ -661,33 +646,8 @@ namespace FinderOuter.Services
             return true;
         }
 
-        private static bool TrySetAllPassValues(PasswordType type, out byte[] allValues)
-        {
-            string temp = string.Empty;
-            if (type.HasFlag(PasswordType.UpperCase))
-            {
-                temp += ConstantsFO.UpperCase;
-            }
-            if (type.HasFlag(PasswordType.LowerCase))
-            {
-                temp += ConstantsFO.LowerCase;
-            }
-            if (type.HasFlag(PasswordType.Numbers))
-            {
-                temp += ConstantsFO.Numbers;
-            }
-            if (type.HasFlag(PasswordType.Symbols))
-            {
-                temp += ConstantsFO.AllSymbols;
-            }
-
-            allValues = Encoding.UTF8.GetBytes(temp);
-
-            return allValues != null && allValues.Length != 0;
-        }
-
         public async void Find(string mnemonic, MnemonicTypes mnType, BIP0039.WordLists wl,
-                               string extra, InputType extraType, string path, int passLength, PasswordType passType)
+                               string comp, CompareInputType compType, string path, int passLength, byte[] allValues)
         {
             report.Init();
 
@@ -699,12 +659,10 @@ namespace FinderOuter.Services
                 return;
             else if (!TrySetPath(path))
                 return;
-            else if (!inputService.TryGetCompareService(extraType, extra, out comparer))
-                report.Fail($"Invalid extra input or input type {extraType}.");
+            else if (!InputService.TryGetCompareService(compType, comp, out comparer))
+                report.Fail($"Invalid extra input or input type {compType}.");
             else if (!TrySetSalt(passLength, mnType, out byte[] salt))
                 return;
-            else if (!TrySetAllPassValues(passType, out byte[] allValues))
-                report.Fail("Something went wrong.");
             else
             {
                 ulong[] pads = new ulong[16];

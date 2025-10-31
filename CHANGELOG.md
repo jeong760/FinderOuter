@@ -1,9 +1,73 @@
 ### Next Release (future ideas)
-[Commits after previous release](https://github.com/Coding-Enthusiast/FinderOuter/compare/v0.12.1.0...master)
-* BIP-38 password recovery
-* SIMD support
-* GPU support
-* Wallet file password recovery
+[Commits after previous release](https://github.com/Coding-Enthusiast/FinderOuter/compare/v0.20.0.0...master)  
+[RoadMap](https://github.com/Coding-Enthusiast/FinderOuter/issues/47)
+
+### Release 0.20.0 (2024-11-13)
+[Full Changelog](https://github.com/Coding-Enthusiast/FinderOuter/compare/v0.19.1.0...v0.20.0.0)  
+* **New feature:** new copy and paste buttons for all search-spaces to be able to copy over lists
+* **New feature:** recovering encryption password used for bitcoin core wallet.dat files
+* Some bug fixes and code improvements
+
+### Release 0.19.1 (2024-01-24)
+[Full Changelog](https://github.com/Coding-Enthusiast/FinderOuter/compare/v0.19.0.0...v0.19.1.0)  
+* Fix a bug in VMs where FinderOuter crashed if user entered an invalid input
+* Move to .net 8 and compile binding (UI)
+* Some cleanup and UI fixes
+
+### Release 0.19.0 (2023-11-15)
+[Full Changelog](https://github.com/Coding-Enthusiast/FinderOuter/compare/v0.18.0.0...v0.19.0.0)  
+* Add settings to define the number of threads used in parallelism + KB entry
+* Old Electrum mnemonics are still not supported but they will be rejected with a clear message
+* Various bug fixes, code improvements, additional tests and some UI fixes
+
+### Release 0.18.0 (2023-06-23)
+[Full Changelog](https://github.com/Coding-Enthusiast/FinderOuter/compare/v0.17.0.0...v0.18.0.0)  
+* Improve the returned message (errors and reports)
+* **New feature:** time estimation. Addresses [#30](https://github.com/Coding-Enthusiast/FinderOuter/issues/30)
+* **New feature:** Add an AutoCompleteBox to mnemonic recovery option to suggest words based on letters the user entered
+* Various bug fixes, code improvements and some additional tests
+
+### Release 0.17.0 (2023-02-27)
+[Full Changelog](https://github.com/Coding-Enthusiast/FinderOuter/compare/v0.16.0.0...v0.17.0.0)  
+* Removed message signature verification
+* Solve issue #4 (not being able to enter words in CJK languages)
+* Completely rely on new Bitcoin.Net release for ECC (has some bug fixes and slight optimization)
+* Improve printed messages (errors and reports)
+* Improved how Base16, Base58 and MiniKey options handle configuring search-space which solves some bugs and returns better messages
+* Return a comprehensive message when an input contains invalid characters (the invalid char and index)
+* Small UI improvements
+* Various small bug fixes, code improvements, code cleanup and lots of new tests
+
+### Release 0.16.0 (2022-09-19)
+[Full Changelog](https://github.com/Coding-Enthusiast/FinderOuter/compare/v0.15.0.0...v0.16.0.0)  
+* Moving ECC to Bitcoin.Net (more tested and optimized)
+* Introduce search space for BIP38 password recovery option
+* Add a new option to open a file containing list of words to be used in the passphrase
+* Fix checking inputs with no missing characters
+* Many improvements in different recovery options
+* Some additional tests, bug fixes, code and UI improvements
+
+### Release 0.15.0 (2022-05-19)
+[Full Changelog](https://github.com/Coding-Enthusiast/FinderOuter/compare/v0.14.0.0...v0.15.0.0)  
+* Added search space option for Base58, Base16, mini-privatekey and mnemonic recovery options
+* Some code improvements and tests
+
+### Release 0.14.0 (2022-03-07)
+[Full Changelog](https://github.com/Coding-Enthusiast/FinderOuter/compare/v0.13.0.0...v0.14.0.0)  
+* Added the EC mult encryption mode to BIP38 password recovery option
+* KnowledgeBase is slightly improved
+* Old ECC code is removed
+* General code improvements and cleanup
+* Some small optimization
+* Small UI improvements
+
+### Release 0.13.0 (2022-02-02)
+[Full Changelog](https://github.com/Coding-Enthusiast/FinderOuter/compare/v0.12.1.0...v0.13.0.0)  
+* **New recovery option**: recovering BIP38 passwords
+* Passwords can now include space
+* Password recovery options (BIP38 and BIP39) can now accept a custom set of characters
+* Base58 recovery of WIFs with unknown missing char position updates progress bar now
+* Small bug fix, optimization and tests
 
 ### Release 0.12.1 (2021-08-19)
 [Full Changelog](https://github.com/Coding-Enthusiast/FinderOuter/compare/v0.12.0.0...v0.12.1.0)  

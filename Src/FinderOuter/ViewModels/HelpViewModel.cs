@@ -13,8 +13,6 @@ namespace FinderOuter.ViewModels
 {
     public enum HelpInputTypes
     {
-        [Description("Message signature")]
-        MsgSig,
         [Description("Wallet import format (WIF)")]
         Wif,
         [Description("Base-58 encoded private key")]
@@ -43,11 +41,6 @@ namespace FinderOuter.ViewModels
 
     public enum HelpSecondInputTypes
     {
-        [Description("not yet verified")]
-        MsgSigUnverified,
-        [Description("could not be verified")]
-        MsgSigBroken,
-
         [Description("missing some characters at known positions")]
         CharMissing,
         [Description("missing some characters at unknown positions")]
@@ -64,15 +57,15 @@ namespace FinderOuter.ViewModels
         [Description("missing BIP-32 derivation path")]
         PathMissing,
 
-        [Description("missing extension word (passphrase)")]
-        PassMissing,
+        [Description("missing BIP-39 extension word (passphrase)")]
+        Bip39PassMissing,
     }
 
     public class HelpViewModel : ViewModelBase
     {
         public HelpViewModel()
         {
-            AllInputs = ListHelper.GetEnumDescItems<HelpInputTypes>();
+            AllInputs = ListHelper.GetEnumDescHelpInput();
         }
 
 
@@ -82,10 +75,10 @@ namespace FinderOuter.ViewModels
                                      $"If you are unsure which option to use, fill in the blanks below for help.";
 
 
-        public IEnumerable<DescriptiveItem<HelpInputTypes>> AllInputs { get; }
+        public IEnumerable<DescriptiveHelpInput> AllInputs { get; }
 
-        private DescriptiveItem<HelpInputTypes> _selInput;
-        public DescriptiveItem<HelpInputTypes> SelectedInput
+        private DescriptiveHelpInput _selInput;
+        public DescriptiveHelpInput SelectedInput
         {
             get => _selInput;
             set
@@ -97,8 +90,8 @@ namespace FinderOuter.ViewModels
         }
 
 
-        private IEnumerable<DescriptiveItem<HelpSecondInputTypes>> _items2;
-        public IEnumerable<DescriptiveItem<HelpSecondInputTypes>> SecondaryItems
+        private IEnumerable<DescriptiveHelpInput2> _items2;
+        public IEnumerable<DescriptiveHelpInput2> SecondaryItems
         {
             get => _items2;
             set => this.RaiseAndSetIfChanged(ref _items2, value);
@@ -124,7 +117,7 @@ namespace FinderOuter.ViewModels
         /// <para/>1 -> extra input could help
         /// <para/>2 -> extra input is mandatory
         /// </param>
-        private string BuildStr(string option, string key, string missType, int extra, bool unknownPos)
+        private static string BuildStr(string option, string key, string missType, int extra, bool unknownPos)
         {
             string temp = "Having the corresponding publickey or address";
             return $"Choose {option} option, enter your {key}" +
@@ -133,7 +126,13 @@ namespace FinderOuter.ViewModels
                    $"{(extra == 0 ? string.Empty : extra == 1 ? $"{temp} is optional but helpful." : $"{temp} is mandatory.")}";
         }
 
-        private string BuildNotAvailable()
+        private static string BuildPassStr(string option, string key)
+        {
+            return $"Choose {option} option, enter your {key} and choose a password recovery mode. " +
+                   $"Enter some information about your password and click Find.";
+        }
+
+        private static string BuildNotAvailable()
         {
             return "This option is not yet available.";
         }
@@ -149,8 +148,6 @@ namespace FinderOuter.ViewModels
 
                 switch (SelectedInput.Value)
                 {
-                    case HelpInputTypes.MsgSig:
-                        break;
                     case HelpInputTypes.Wif:
                     case HelpInputTypes.Base58Prv:
                         if (SelectedSecondary.Value == HelpSecondInputTypes.CharMissing)
@@ -182,6 +179,10 @@ namespace FinderOuter.ViewModels
                         {
                             return BuildNotAvailable();
                         }
+                        else if (SelectedSecondary.Value == HelpSecondInputTypes.PasswordMissing)
+                        {
+                            return BuildPassStr("Missing BIP38 Pass", "BIP38 encrypted key");
+                        }
                         break;
                     case HelpInputTypes.Base16Prv:
                         if (SelectedSecondary.Value == HelpSecondInputTypes.CharMissing)
@@ -206,7 +207,7 @@ namespace FinderOuter.ViewModels
                     case HelpInputTypes.Bip39Seed:
                         if (SelectedSecondary.Value == HelpSecondInputTypes.WordMissing)
                         {
-                            return BuildStr("Missing mnemonic", "BIP39 seed phrase", "word", 2, false);
+                            return BuildStr("Missing Mnemonic", "BIP39 seed phrase", "word", 2, false);
                         }
                         else if (SelectedSecondary.Value == HelpSecondInputTypes.WordMissingUnknown)
                         {
@@ -214,11 +215,11 @@ namespace FinderOuter.ViewModels
                         }
                         else if (SelectedSecondary.Value == HelpSecondInputTypes.PathMissing)
                         {
-                            return BuildStr("Missing BIP32 path", "BIP39 seed phrase", "word", 2, true);
+                            return BuildStr("Missing BIP32 Path", "BIP39 seed phrase", "word", 2, true);
                         }
-                        else if (SelectedSecondary.Value == HelpSecondInputTypes.PassMissing)
+                        else if (SelectedSecondary.Value == HelpSecondInputTypes.Bip39PassMissing)
                         {
-                            return BuildNotAvailable();
+                            return BuildPassStr("Missing Mnemonic Pass", "Mnemonic, derivation path and child key"); ;
                         }
                         break;
                     case HelpInputTypes.ElecSeed:
@@ -234,7 +235,7 @@ namespace FinderOuter.ViewModels
                         {
                             return BuildStr("Missing BIP32 path", "Electrum seed phrase", "word", 2, true);
                         }
-                        else if (SelectedSecondary.Value == HelpSecondInputTypes.PassMissing)
+                        else if (SelectedSecondary.Value == HelpSecondInputTypes.Bip39PassMissing)
                         {
                             return BuildNotAvailable();
                         }
@@ -272,33 +273,33 @@ namespace FinderOuter.ViewModels
         }
 
 
-        private IEnumerable<DescriptiveItem<T>> ToDescItems<T>(params T[] values) where T : Enum
+        private static IEnumerable<DescriptiveHelpInput2> ToDescItems(params HelpSecondInputTypes[] values)
         {
             foreach (var item in values)
             {
-                yield return new DescriptiveItem<T>(item);
+                yield return new DescriptiveHelpInput2(item);
             }
         }
 
-        private IEnumerable<DescriptiveItem<HelpSecondInputTypes>> GetSecondary(HelpInputTypes value)
+        private static IEnumerable<DescriptiveHelpInput2> GetSecondary(HelpInputTypes value)
         {
-            if (value == HelpInputTypes.MsgSig)
-            {
-                return ToDescItems(HelpSecondInputTypes.MsgSigUnverified, HelpSecondInputTypes.MsgSigBroken);
-            }
-            else if (value == HelpInputTypes.Wif || value == HelpInputTypes.Base58Prv ||
-                     value == HelpInputTypes.P2pkhAddr || value == HelpInputTypes.P2shAddr ||
-                     value == HelpInputTypes.Bip38 ||
-                     value == HelpInputTypes.Base16Prv ||
-                     value == HelpInputTypes.MiniKey ||
-                     value == HelpInputTypes.Armory)
+            if (value == HelpInputTypes.Wif || value == HelpInputTypes.Base58Prv ||
+                value == HelpInputTypes.P2pkhAddr || value == HelpInputTypes.P2shAddr ||
+                value == HelpInputTypes.Base16Prv ||
+                value == HelpInputTypes.MiniKey ||
+                value == HelpInputTypes.Armory)
             {
                 return ToDescItems(HelpSecondInputTypes.CharMissing, HelpSecondInputTypes.CharMissingUnknown);
+            }
+            else if (value == HelpInputTypes.Bip38)
+            {
+                return ToDescItems(HelpSecondInputTypes.CharMissing, HelpSecondInputTypes.CharMissingUnknown,
+                                   HelpSecondInputTypes.PasswordMissing);
             }
             else if (value == HelpInputTypes.Bip39Seed || value == HelpInputTypes.ElecSeed)
             {
                 return ToDescItems(HelpSecondInputTypes.WordMissing, HelpSecondInputTypes.WordMissingUnknown,
-                                   HelpSecondInputTypes.PathMissing, HelpSecondInputTypes.PassMissing);
+                                   HelpSecondInputTypes.PathMissing, HelpSecondInputTypes.Bip39PassMissing);
             }
             else if (value == HelpInputTypes.Xprv || value == HelpInputTypes.Xpub)
             {

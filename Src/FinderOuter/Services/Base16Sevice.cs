@@ -3,15 +3,12 @@
 // Distributed under the MIT software license, see the accompanying
 // file LICENCE or http://www.opensource.org/licenses/mit-license.php.
 
-using Autarkysoft.Bitcoin.Cryptography.Asymmetric.KeyPairs;
-using Autarkysoft.Bitcoin.Encoders;
-using FinderOuter.Backend;
-using FinderOuter.Backend.ECC;
+using Autarkysoft.Bitcoin.Cryptography.EllipticCurve;
 using FinderOuter.Models;
 using FinderOuter.Services.Comparers;
+using FinderOuter.Services.SearchSpaces;
 using System;
-using System.Linq;
-using System.Numerics;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 
@@ -21,32 +18,21 @@ namespace FinderOuter.Services
     {
         public Base16Sevice(IReport rep)
         {
-            inputService = new InputService();
             report = rep;
         }
 
 
         private readonly IReport report;
-        private readonly InputService inputService;
         private ICompareService comparer;
-
-        private int[] missingIndexes;
-        private int missCount;
-        private string key;
+        private B16SearchSpace searchSpace;
 
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static unsafe bool MoveNext(int* items, int len)
+        private static unsafe bool MoveNext(Permutation* items, int len)
         {
-            for (int i = len - 1; i >= 0; --i)
+            for (int i = len - 1; i >= 0; i--)
             {
-                items[i] += 1;
-
-                if (items[i] == 16)
-                {
-                    items[i] = 0;
-                }
-                else
+                if (items[i].Increment())
                 {
                     return true;
                 }
@@ -55,14 +41,14 @@ namespace FinderOuter.Services
             return false;
         }
 
-        private unsafe void SetResultParallel(int* items, int firstItem)
+        private unsafe void SetResultParallel(Permutation* items, int firstItem)
         {
-            char[] origHex = key.ToCharArray();
-            origHex[missingIndexes[0]] = GetHex(firstItem);
-            for (int i = 0; i < missCount - 1; i++)
+            char[] origHex = searchSpace.Input.ToCharArray();
+            origHex[searchSpace.MissingIndexes[0]] = GetHex(firstItem);
+            for (int i = 0; i < searchSpace.MissCount - 1; i++)
             {
-                int index = missingIndexes[i + 1];
-                origHex[index] = GetHex(items[i]);
+                int index = searchSpace.MissingIndexes[i + 1];
+                origHex[index] = GetHex((int)items[i].GetValue());
             }
 
             report.AddMessageSafe($"Found the key: {new string(origHex)}");
@@ -71,19 +57,28 @@ namespace FinderOuter.Services
 
         private unsafe void Loop(int firstItem, in PointJacobian smallPub, ParallelLoopState loopState)
         {
-            var calc = new Calc();
-            var missingItems = new int[missCount - 1];
-            var localComp = comparer.Clone();
+            Calc calc = new();
+            Debug.Assert(searchSpace.MissCount - 1 > 0);
+            Permutation[] permutations = new Permutation[searchSpace.MissCount - 1];
+            ICompareService localComp = comparer.Clone();
 
             Span<byte> temp = stackalloc byte[32];
 
-            fixed (int* itemsPt = &missingItems[0])
-            fixed (int* mi = &missingIndexes[0])
+            fixed (int* mi = &searchSpace.MissingIndexes[0])
             fixed (byte* tmp = &temp[0])
+            fixed (Permutation* itemsPt = &permutations[0])
+            fixed (uint* valPt = &searchSpace.AllPermutationValues[0])
             {
+                uint* tempPt = valPt;
+                for (int i = 0; i < permutations.Length; i++)
+                {
+                    tempPt += searchSpace.PermutationCounts[i];
+                    itemsPt[i] = new(searchSpace.PermutationCounts[i + 1], tempPt);
+                }
+
                 int misIndex = mi[0];
                 int firstIndex = misIndex / 2;
-                byte firstValue = (misIndex % 2 == 0) ? (byte)(firstItem << 4) : (byte)firstItem;
+                byte firstValue = (misIndex % 2 == 0) ? (byte)(valPt[firstItem] << 4) : (byte)valPt[firstItem];
                 tmp[firstIndex] = firstValue;
 
                 do
@@ -94,24 +89,24 @@ namespace FinderOuter.Services
                     }
 
                     int mis = 1;
-                    foreach (var item in missingItems)
+                    foreach (Permutation item in permutations)
                     {
                         misIndex = mi[mis++];
                         if (misIndex % 2 == 0)
                         {
                             tmp[misIndex / 2] &= 0b0000_1111;
-                            tmp[misIndex / 2] |= (byte)(item << 4);
+                            tmp[misIndex / 2] |= (byte)(item.GetValue() << 4);
                         }
                         else
                         {
                             tmp[misIndex / 2] &= 0b1111_0000;
-                            tmp[misIndex / 2] |= (byte)item;
+                            tmp[misIndex / 2] |= (byte)item.GetValue();
                         }
                     }
 
-                    var tempVal = new Scalar(temp, out _);
+                    Scalar8x32 tempVal = new(temp, out _);
                     PointJacobian tempPub = calc.MultiplyByG(in tempVal);
-                    PointJacobian pub = tempPub.AddVariable(smallPub);
+                    PointJacobian pub = tempPub.AddVar(smallPub, out _);
 
                     if (comparer.Compare(pub))
                     {
@@ -120,25 +115,26 @@ namespace FinderOuter.Services
                         return;
                     }
 
-                } while (MoveNext(itemsPt, missingItems.Length));
+                } while (MoveNext(itemsPt, permutations.Length));
             }
 
             report.IncrementProgress();
         }
-        private unsafe void Loop(byte[] preComputed)
-        {
-            var calc = new Calc();
-            var smallVal = new Scalar(preComputed, out _);
-            PointJacobian smallPub = calc.MultiplyByG(smallVal);
 
-            if (missCount == 1)
+        private unsafe void Loop()
+        {
+            Scalar8x32 smallVal = new(searchSpace.preComputed, out _);
+            PointJacobian smallPub = comparer.Calc.MultiplyByG(smallVal);
+
+            if (searchSpace.MissCount == 1)
             {
-                int misIndex = missingIndexes[0];
+                // Checking max 16 keys is so fast that there is no need to use the limited search space
+                int misIndex = searchSpace.MissingIndexes[0];
                 int index = misIndex / 2;
                 bool condition = misIndex % 2 == 0;
 
                 Span<byte> temp = stackalloc byte[32];
-                fixed (int* mi = &missingIndexes[0])
+                fixed (int* mi = &searchSpace.MissingIndexes[0])
                 fixed (byte* tmp = &temp[0])
                 {
                     for (int i = 0; i < 16; i++)
@@ -154,12 +150,12 @@ namespace FinderOuter.Services
                             tmp[index] |= (byte)i;
                         }
 
-                        var tempVal = new Scalar(temp, out _);
-                        PointJacobian tempPub = calc.MultiplyByG(tempVal);
-                        PointJacobian pub = tempPub.AddVariable(smallPub);
+                        Scalar8x32 tempVal = new(temp, out _);
+                        PointJacobian tempPub = comparer.Calc.MultiplyByG(tempVal);
+                        PointJacobian pub = tempPub.AddVar(smallPub, out _);
                         if (comparer.Compare(pub))
                         {
-                            char[] origHex = key.ToCharArray();
+                            char[] origHex = searchSpace.Input.ToCharArray();
                             origHex[misIndex] = GetHex(i);
 
                             report.AddMessageSafe($"Found the key: {new string(origHex)}");
@@ -171,8 +167,11 @@ namespace FinderOuter.Services
             }
             else
             {
-                report.SetProgressStep(16);
-                Parallel.For(0, 16, (firstItem, state) => Loop(firstItem, smallPub, state));
+                int max = searchSpace.PermutationCounts[0];
+                report.SetProgressStep(max);
+
+                ParallelOptions opts = report.BuildParallelOptions();
+                Parallel.For(0, max, opts, (firstItem, state) => Loop(firstItem, smallPub, state));
             }
         }
 
@@ -200,93 +199,31 @@ namespace FinderOuter.Services
             };
         }
 
-        public static bool IsInputValid(string key, char missingChar)
-        {
-            return !string.IsNullOrEmpty(key) &&
-                    key.All(c => c == missingChar || ConstantsFO.Base16Chars.Contains(char.ToLower(c)));
-        }
 
-        public async void Find(string key, char missingChar, string AdditionalInput, InputType extraType)
+        public async void Find(B16SearchSpace ss, string comp, CompareInputType compType)
         {
             report.Init();
 
-            if (!inputService.IsMissingCharValid(missingChar))
-                report.Fail("Missing character is not valid.");
-            else if (!IsInputValid(key, missingChar))
-                report.Fail("Input contains invalid base-16 character(s).");
-            else if (key.Length != 64)
-                report.Fail("Key length must be 64.");
-            else if (!inputService.IsPrivateKeyInRange(Base16.Decode(key.Replace(missingChar, 'f'))))
-                report.Fail("This is a problematic key to brute force, please open a new issue on GitHub for this case.");
-            else if (!inputService.TryGetCompareService(extraType, AdditionalInput, out comparer))
-                report.Fail($"Could not instantiate ICompareService (invalid {extraType}).");
+            if (!InputService.TryGetCompareService(compType, comp, out comparer))
+            {
+                report.Fail($"Could not instantiate ICompareService (invalid {compType}).");
+            }
+            else if (ss.MissCount == 0)
+            {
+                report.FoundAnyResult = ss.ProcessNoMissing(comparer, out string message);
+                report.AddMessageSafe(message);
+            }
             else
             {
-                missCount = key.Count(c => c == missingChar);
-                if (missCount == 0)
-                {
-                    try
-                    {
-                        using PrivateKey prv = new(Base16.Decode(key));
-                        bool check = new AddressService().Compare(AdditionalInput, extraType, prv, out string msg);
-                        if (check)
-                        {
-                            report.Pass(msg);
-                        }
-                        else
-                        {
-                            report.Fail(msg);
-                        }
-                        return;
-                    }
-                    catch (Exception ex)
-                    {
-                        report.Fail($"Key is out of range {ex.Message}");
-                    }
-
-                    report.Pass("The given key is valid.");
-                    return;
-                }
-
-                this.key = key;
-
-                report.AddMessage($"The given key is missing {missCount} characters.");
-                report.SetTotal(16, missCount);
+                report.AddMessage($"The given key is missing {ss.MissCount} characters.");
+                report.SetTotal(ss.GetTotal());
                 report.Timer.Start();
 
-                missingIndexes = new int[missCount];
-                byte[] ba = new byte[32];
-                for (int i = 0, j = 0; i < ba.Length; i++)
-                {
-                    int hi, lo;
-                    if (key[i * 2] == missingChar)
-                    {
-                        hi = 0;
-                        missingIndexes[j++] = i * 2;
-                    }
-                    else
-                    {
-                        hi = key[i * 2] - 65;
-                        hi = hi + 10 + ((hi >> 31) & 7);
-                    }
-                    if (key[i * 2 + 1] == missingChar)
-                    {
-                        lo = 0;
-                        missingIndexes[j++] = i * 2 + 1;
-                    }
-                    else
-                    {
-                        lo = key[i * 2 + 1] - 65;
-                        lo = lo + 10 + ((lo >> 31) & 7) & 0x0f;
-                    }
-
-                    ba[i] = (byte)(lo | hi << 4);
-                }
-
-                await Task.Run(() => Loop(ba));
-
-                report.Finalize();
+                searchSpace = ss;
+                await Task.Run(() => Loop());
             }
+
+            report.Finalize();
         }
     }
 }

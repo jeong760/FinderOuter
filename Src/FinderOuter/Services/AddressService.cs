@@ -4,26 +4,26 @@
 // file LICENCE or http://www.opensource.org/licenses/mit-license.php.
 
 using Autarkysoft.Bitcoin.Blockchain.Scripts;
-using Autarkysoft.Bitcoin.Cryptography.Asymmetric.KeyPairs;
+using Autarkysoft.Bitcoin.Cryptography.EllipticCurve;
 using Autarkysoft.Bitcoin.Encoders;
+using System.Text;
 
 namespace FinderOuter.Services
 {
-    public class AddressService
+    public static class AddressService
     {
         /// <summary>
         /// Checks the given address and returns its decoded hash.
         /// Works only for P2PKH and P2WPKH addresses
         /// </summary>
-        public bool CheckAndGetHash(string address, out byte[] hash)
+        public static bool CheckAndGetHash(string address, out byte[] hash)
         {
             hash = null;
             if (string.IsNullOrWhiteSpace(address))
             {
                 return false;
             }
-
-            if (address[0] == '1')
+            else if (address[0] == '1')
             {
                 return Address.VerifyType(address, PubkeyScriptType.P2PKH, out hash);
             }
@@ -41,7 +41,7 @@ namespace FinderOuter.Services
         /// Checks the given address and returns its decoded hash.
         /// Works only for P2SH addresses
         /// </summary>
-        public bool CheckAndGetHash_P2sh(string address, out byte[] hash)
+        public static bool CheckAndGetHash_P2sh(string address, out byte[] hash)
         {
             if (string.IsNullOrWhiteSpace(address) || address[0] != '3')
             {
@@ -55,104 +55,16 @@ namespace FinderOuter.Services
         }
 
 
-        public bool Compare(string expectedAddr, InputType inType, PrivateKey prv, out string message)
+        public static string GetAllAddresses(in Point pub)
         {
-            var pub = prv.ToPublicKey();
-            if (inType == InputType.AddrNested)
-            {
-                if (expectedAddr == Address.GetP2sh_P2wpkh(pub))
-                {
-                    message = "The given address is derived from the given private key.";
-                }
-                else if (expectedAddr == Address.GetP2sh_P2wpkh(pub, false))
-                {
-                    message = "The given address is derived from the given private key but it uses " +
-                              "uncompressed pubkey which is non-standard.";
-                }
-                else
-                {
-                    message = "Can not derive the given address from this private key.";
-                    return false;
-                }
-            }
-            else
-            {
-                if (expectedAddr.StartsWith("bc"))
-                {
-                    if (expectedAddr == Address.GetP2wpkh(pub))
-                    {
-                        message = "The given address is derived from the given private key.";
-                    }
-                    else if (expectedAddr == Address.GetP2wpkh(pub, false))
-                    {
-                        message = "The given address is derived from the given private key but it uses " +
-                                  "uncompressed pubkey which is non-standard.";
-                    }
-                    else
-                    {
-                        message = "Can not derive the given address from this private key.";
-                        return false;
-                    }
-                }
-                else if (expectedAddr.StartsWith("1"))
-                {
-                    string comp = Address.GetP2pkh(pub);
-                    string uncomp = Address.GetP2pkh(pub, false);
+            StringBuilder sb = new(4 * 64);
 
-                    if (inType == InputType.AddrComp)
-                    {
-                        if (expectedAddr == comp)
-                        {
-                            message = "The given address is derived from the given private key."; 
-                        }
-                        else if (expectedAddr == uncomp)
-                        {
-                            message = "The given address is derived from the given private key but uses " +
-                                      "the uncompressed public key.";
-                            return false;
-                        }
-                        else
-                        {
-                            message = "Can not derive the given address from this private key.";
-                            return false;
-                        }
-                    }
-                    else if (inType == InputType.AddrUnComp)
-                    {
-                        if (expectedAddr == uncomp)
-                        {
-                            message = "The given address is derived from the given private key.";
-                        }
-                        else if (expectedAddr == comp)
-                        {
-                            message = "The given address is derived from the given private key but uses " +
-                                      "the compressed public key.";
-                            return false;
-                        }
-                        else
-                        {
-                            message = "Can not derive the given address from this private key.";
-                            return false;
-                        }
-                    }
-                    else if (inType == InputType.AddrBoth && (expectedAddr == comp || expectedAddr == comp))
-                    {
-                        message = "The given address is derived from the given private key.";
-                    }
-                    else
-                    {
-                        message = "Can not derive the given address from this private key.";
-                        return false;
-                    }
-                }
-                else
-                {
-                    message = "Possible invalid address type.";
-                    return false;
-                }
-            }
+            sb.AppendLine($"Compressed P2PKH:   {Address.GetP2pkh(pub)}");
+            sb.AppendLine($"Uncompressed P2PKH: {Address.GetP2pkh(pub, false)}");
+            sb.AppendLine($"P2WPKH:             {Address.GetP2wpkh(pub)}");
+            sb.AppendLine($"P2SH-P2WPKH:        {Address.GetP2sh_P2wpkh(pub)}");
 
-            return true;
+            return sb.ToString();
         }
     }
 }

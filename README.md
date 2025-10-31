@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.com/Coding-Enthusiast/FinderOuter.svg?branch=master)](https://travis-ci.com/Coding-Enthusiast/FinderOuter)
+[![.NET-CI](https://github.com/Coding-Enthusiast/FinderOuter/actions/workflows/dotnetCI.yml/badge.svg)](https://github.com/Coding-Enthusiast/FinderOuter/actions/workflows/dotnetCI.yml)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/Coding-Enthusiast/FinderOuter/blob/master/License)
 [![Target](https://img.shields.io/badge/dynamic/xml?color=%23512bd4&label=target&query=%2F%2FTargetFramework%5B1%5D&url=https%3A%2F%2Fraw.githubusercontent.com%2FCoding-Enthusiast%2FFinderOuter%2Fmaster%2FSrc%2FFinderOuter%2FFinderOuter.csproj&logo=.net)](https://github.com/Coding-Enthusiast/FinderOuter/blob/master/Src/FinderOuter/FinderOuter.csproj)
 [![Downloads](https://img.shields.io/github/downloads/Coding-Enthusiast/FinderOuter/total)](https://github.com/Coding-Enthusiast/FinderOuter/releases)
@@ -25,9 +25,9 @@ Contribution is always welcome. Please report any bugs you find or any improveme
 2. Read the instructions
 3. Fill in the required information
 4. Select appropriate available options according to the entered data
-5. Some parts have tooltips for extra explanation
+5. There are some useful advanced options to speed up the recovery
 6. Click Find button
-7. See the progress and the reports
+7. Reports are printed here as the program works on recovering your keys
 8. Progressbar showing the progress percentage shows up for options that use multi-threading 
 (take more than a couple of seconds to complete)
 9. All recovery options come with examples, click this button repeatedly to cycle through them
@@ -36,9 +36,10 @@ Contribution is always welcome. Please report any bugs you find or any improveme
 ![Preview](/Doc/Images/MainPreview.jpg)
 
 ## Available recovery options
-#### 1. Message signature verification  
-User can enter a message signature here to verify it. In case there is a problem with the message (except being an 
-actually invalid signature), the code can search to find the common issues that some signing tools have and fix them.
+#### 1. Missing Base-16 characters
+This option is similar to previous feature but works for base-16 (hexadecimal) private keys. Since there is no checksum in this
+encoding it requires an additional input to check each permutation against. It accepts any address type and public keys.
+This option is slower in comparison because it uses ECC and that is not yet optimized.
 
 #### 2. Missing Base-58 characters
 This option can be used to recover any base-58 encoded string with a checksum that is missing some characters. For example 
@@ -47,50 +48,50 @@ It works for (1) [WIFs](https://en.bitcoin.it/wiki/Wallet_import_format) (Base-5
 (2) [Addresses](https://en.bitcoin.it/wiki/Address) (Base-58 encoded P2PKH or P2SH address) 
 (3) [BIP-38](https://github.com/bitcoin/bips/blob/master/bip-0038.mediawiki) (Base-58 encoded encrypted private key).  
 
-There is also a "special case" for private keys missing 1, 2 or 3 characters at _unknown_ positions.
-
-#### 3. Missing Base-16 characters
-This option is similar to previous feature but works for base-16 (hexadecimal) private keys. Since there is no checksum in this
-encoding it requires an additional input to check each permutation against. It accepts any address type and public keys.
-This option is slower in comparison because it uses ECC and that is not yet optimized.
-
-#### 4. Missing mini-privatekey characters
+#### 3. Missing mini-privatekey characters
 This option is similar to 2 and 3 but works for [mini-privatekeys](https://en.bitcoin.it/wiki/Mini_private_key_format)
 (eg. SzavMBLoXU6kDrqtUVmffv). It requires the corresponding address or public key of the minikey to check
 each possible key against, as a result it is also slower since it depends on ECC and has 2 additional hashes.
 
-#### 5. Missing mnomonic (seed) words 
+#### 4. Missing BIP-38 password
+This option can recover passwords used in encrypting bitcoin private keys using the 
+[BIP-38](https://github.com/bitcoin/bips/blob/master/bip-0038.mediawiki) proposal. The available password recovery modes 
+are the same as mnemonic passphrase option.
+
+#### 5. Missing bitcoin core wallet.dat password
+This option can recover passwords used to encrypt the bitcoin core wallet files.
+
+#### 6. Missing mnomonic (seed) words 
 This option works for both [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) and Electrum mnemonics
 that have some missing words. It requires knowing one child (private/public) key or address created from that seed and the 
 exact derivation path of it.
 
-#### 6. Missing mnemonic passphrase
+#### 7. Missing mnemonic passphrase
 This option is used to recover the extension words (aka passphrase) used in mnemonics. It works for both
 [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) and Electrum mnemonics algorithms. The available
 passphrase recovery modes are:  
 a. Alphanumeric: This is when the passphrase consists of letter, numbers and symbols and is random. Example: `OT!pA?8i`  
-b. _soon_
+b. CustomChars: This mode allows user to define their own set of characters to be used in the passphrase.
+c. _soon_
 
-
-#### 7. Missing BIP-32 derivation path
+#### 8. Missing BIP-32 derivation path
 This option could be used to find derivation path of a child key (private key, public key or the address) by having the mnemonic
 or the extended master keys (xprv or xpub). It only checks a hard-coded list of popular derivation paths.
 
-#### 8. Missing characters in Armory recovery phrase
+#### 9. Missing characters in Armory recovery phrase
 This option is used to recover Armory paper backups (containing 2 or 4 lines of 36 characters in Base-16 with custom char-set)
 that are missing some of their characters. Since the last 4 characters of each line is the checksum this option can be very fast
 (1 trillion keys/sec) if the checksum is available or extremely slow (100 key/sec) if not.
 
-#### 9. Missing string encoding
+#### 10. Missing string encoding
 This option could be used to determine the encoding of an arbitrary text. It currently supports Base-16, Base-43, Base-58, 
 Base-58 with checksum and Base-64. All inputs will be converted to hexadecimal.
 
 
 ## Future plans
+Check out roadmap here: https://github.com/Coding-Enthusiast/FinderOuter/issues/47
 * Optimization is always at the top of the to-do list
 * File password recovery (user knows some parts of his password but not all and has the encrypted wallet file)
-* BIP-38 password recovery
-* Converting versioned WIFs to regular WIFs (BIP-178 and early vertion 3 Electrum wallets)
 * SIMD code
 * GPU support
 

@@ -3,11 +3,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file LICENCE or http://www.opensource.org/licenses/mit-license.php.
 
-using FinderOuter.Backend.ECC;
 using FinderOuter.Services.Comparers;
 using System.Collections.Generic;
-using System.Linq;
-using Xunit;
 
 namespace Tests.Services.Comparers
 {
@@ -25,7 +22,7 @@ namespace Tests.Services.Comparers
         [MemberData(nameof(GetHashCases))]
         public void InitTest(string wif, bool expected)
         {
-            var comp = new PrvToPrvComparer();
+            PrvToPrvComparer comp = new();
             bool actual = comp.Init(wif);
             Assert.Equal(expected, actual);
         }
@@ -33,9 +30,9 @@ namespace Tests.Services.Comparers
         [Fact]
         public void CloneTest()
         {
-            var original = new PrvToPrvComparer();
+            PrvToPrvComparer original = new();
             Assert.True(original.Init(KeyHelper.Prv1.ToWif(true))); // Make sure it is successfully initialized
-            var cloned = original.Clone();
+            ICompareService cloned = original.Clone();
             // Change original field value to make sure it is cloned not a reference copy
             Assert.True(original.Init(KeyHelper.Prv2.ToWif(true)));
 
@@ -49,7 +46,7 @@ namespace Tests.Services.Comparers
         [Fact]
         public void CompareTest()
         {
-            var comp = new PrvToPrvComparer();
+            PrvToPrvComparer comp = new();
             Assert.True(comp.Init(KeyHelper.Prv1.ToWif(true)));
             byte[] key = KeyHelper.Prv1.ToBytes();
             key[0]++;
@@ -65,7 +62,7 @@ namespace Tests.Services.Comparers
 
         public static IEnumerable<object[]> GetCases()
         {
-            var comp = new PrvToPrvComparer();
+            PrvToPrvComparer comp = new();
             Assert.True(comp.Init(KeyHelper.Prv1Wif));
 
             yield return new object[] { comp, KeyHelper.Prv1.ToBytes(), true };

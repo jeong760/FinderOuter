@@ -3,28 +3,75 @@
 // Distributed under the MIT software license, see the accompanying
 // file LICENCE or http://www.opensource.org/licenses/mit-license.php.
 
-using FinderOuter.Backend.ECC;
+using Autarkysoft.Bitcoin.Cryptography.EllipticCurve;
 using Newtonsoft.Json;
 using System;
 using System.IO;
 using System.Reflection;
-using Xunit;
 
 namespace Tests
 {
-    public class Helper
+    public static class Helper
     {
-        private static readonly Calc calc2 = new();
-        public static Calc Calc => calc2;
+        private static readonly Calc _calc = new();
+        public static Calc Calc => _calc;
 
 
-        internal static JsonSerializerSettings jSetting = new JsonSerializerSettings
+        internal static JsonSerializerSettings jSetting = new()
         {
             Converters = { new ByteArrayHexConverter() },
             ConstructorHandling = ConstructorHandling.AllowNonPublicDefaultConstructor
         };
 
 
+        public static void ComparePrivateField<InstanceType, FieldType>(InstanceType instance, string fieldName, FieldType expected)
+        {
+            FieldInfo fi = typeof(InstanceType).GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Instance);
+            if (fi is null)
+            {
+                Assert.Fail("The private field was not found.");
+            }
+
+            object fieldVal = fi.GetValue(instance);
+            if (fieldVal is null)
+            {
+                Assert.Fail("The private field value was null.");
+            }
+            else if (fieldVal is FieldType actual)
+            {
+                Assert.Equal(expected, actual);
+            }
+            else
+            {
+                Assert.Fail($"Field value is not the same type as expected.{Environment.NewLine}" +
+                            $"Actual type: {fieldVal.GetType()}{Environment.NewLine}" +
+                            $"Expected type: {expected.GetType()}");
+            }
+        }
+
+        public static void CallPrivateMethod<InstanceType>(this InstanceType instance, string methodName, params object[] parameters)
+        {
+            Type type = instance.GetType();
+            BindingFlags bindingAttr = BindingFlags.NonPublic | BindingFlags.Instance;
+            MethodInfo method = type.GetMethod(methodName, bindingAttr);
+            if (method is null)
+            {
+                Assert.Fail("Method was not found.");
+            }
+            method.Invoke(instance, parameters);
+        }
+
+        public static TReturn CallPrivateMethod<InstanceType, TReturn>(this InstanceType instance, string methodName, params object[] parameters)
+        {
+            Type type = instance.GetType();
+            BindingFlags bindingAttr = BindingFlags.NonPublic | BindingFlags.Instance;
+            MethodInfo method = type.GetMethod(methodName, bindingAttr);
+            if (method is null)
+            {
+                Assert.Fail("Method was not found.");
+            }
+            return (TReturn)method.Invoke(instance, parameters);
+        }
 
         public static string ReadResources(string resourceName, string fileExtention = "json")
         {
@@ -32,12 +79,12 @@ namespace Tests
             using Stream stream = asm.GetManifestResourceStream($"Tests.TestData.{resourceName}.{fileExtention}");
             if (stream != null)
             {
-                using StreamReader reader = new StreamReader(stream);
+                using StreamReader reader = new(stream);
                 return reader.ReadToEnd();
             }
             else
             {
-                Assert.True(false, "File was not found among resources!");
+                Assert.Fail("File was not found among resources!");
                 return "";
             }
         }

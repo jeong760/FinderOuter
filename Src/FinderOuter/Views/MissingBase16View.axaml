@@ -1,0 +1,127 @@
+﻿<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:FinderOuter.ViewModels;assembly=FinderOuter"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+             x:CompileBindings="True"
+             x:DataType="vm:MissingBase16ViewModel"
+             x:Class="FinderOuter.Views.MissingBase16View">
+
+  <Design.DataContext>
+    <vm:MissingBase16ViewModel/>
+  </Design.DataContext>
+
+  <Grid ColumnDefinitions="*,auto" RowDefinitions="auto,auto,auto">
+    <TextBox Text="{Binding Input}"
+             Watermark="Base-16 (hexadecimal) private key with 64 characters"
+             Grid.Column="0"
+             Grid.Row="0"/>
+    <Button Classes="Help"
+            CommandParameter="{Binding InputKb}"
+            Grid.Column="0"
+            Grid.Row="0"/>
+    <TextBox Text="{Binding CompareInput}"
+             Watermark="The corresponding address or public key to check each permutation against"
+             Grid.Column="0"
+             Grid.Row="1"/>
+    <Button Classes="Help"
+            CommandParameter="{Binding ExtraInputKb}"
+            Grid.Column="0"
+            Grid.Row="1"/>
+
+    <ComboBox ItemsSource="{Binding MissingChars}"
+              SelectedItem="{Binding SelectedMissingChar}"
+              ToolTip.Tip="{Binding MissingToolTip}"
+              VerticalAlignment="Top"
+              Margin="1"
+              Grid.Column="1"
+              Grid.Row="0"/>
+
+    <ComboBox ItemsSource="{Binding CompareInputTypeList}"
+              SelectedItem="{Binding SelectedCompareInputType}"
+              Grid.Column="1"
+              Grid.Row="1">
+      <ComboBox.ItemTemplate>
+        <DataTemplate>
+          <TextBlock Text="{Binding Value}"
+                     ToolTip.Tip="{Binding Description}"/>
+        </DataTemplate>
+      </ComboBox.ItemTemplate>
+    </ComboBox>
+
+    <Expander Header="Advanced (limit search space)" Grid.Column="0" Grid.Row="2">
+      <Grid ColumnDefinitions="auto,*,auto" RowDefinitions="auto,*">
+        <Button Content="Start"
+                Command="{Binding StartCommand}"
+                Width="70"
+                Grid.Column="0"
+                Grid.Row="0"/>
+        <Grid ColumnDefinitions="auto,*,auto" Margin="5,0,5,0" Grid.Column="1" Grid.Row="0">
+          <Button Content="&#60;"
+                  Command="{Binding PreviousCommand}"
+                  ToolTip.Tip="Previous missing char"
+                  Width="50"
+                  Grid.Column="0"/>
+          <TextBlock Text="{Binding SelectedStep}"
+                     TextAlignment="Center"
+                     Width="120"
+                     Grid.Column="1"/>
+          <Button Content="&#62;"
+                  Command="{Binding NextCommand}"
+                  ToolTip.Tip="Next missing char"
+                  Width="50"
+                  Grid.Column="2"/>
+        </Grid>
+        <StackPanel Orientation="Horizontal" Spacing="5" Grid.Column="2" Grid.Row="0">
+          <TextBlock Text="Total: "/>
+          <TextBlock Text="{Binding CurrentItems.Count}"/>
+        </StackPanel>
+
+        <Grid Width="150" RowDefinitions="auto,*" Grid.Column="0" Grid.Row="1">
+          <Grid ColumnDefinitions="*,auto" Grid.Row="0">
+            <TextBox Text="{Binding ToAdd}" Grid.Column="0" MinHeight="30"/>
+            <Button Content="+" Command="{Binding AddExactCommand}" IsDefault="True"
+                    ToolTip.Tip="Press enter to add"
+                    Height="30" Width="30" Margin="2" Grid.Column="1"/>
+          </Grid>
+
+          <StackPanel Orientation="Vertical" Spacing="2" Margin="3,10,0,0" Grid.Row="1">
+            <Button Content="Add all" Command="{Binding AddAllCommand}"/>
+            <Button Content="Add all numbers" Command="{Binding AddNumbersCommand}"/>
+            <Button Content="Add all letters" Command="{Binding AddLetersCommand}"/>
+          </StackPanel>
+        </Grid>
+
+        <Grid Grid.Column="1" Grid.Row="1" RowDefinitions="*,auto">
+          <ListBox ItemsSource="{Binding CurrentItems}"
+                   SelectedItem="{Binding SelectedItem}"
+                   Height="130"
+                   Margin="3"
+                   Grid.Row="0"/>
+          <Grid ColumnDefinitions="*,*,*" Grid.Row="1">
+            <Button Content="Copy"
+                    Command="{Binding CopyCommand}"
+                    Width="100"
+                    Grid.Column="0"/>
+            <Button Content="Paste (add)"
+                    Command="{Binding PasteCommand}"
+                    CommandParameter="{x:False}"
+                    Width="100"
+                    Grid.Column="1"/>
+            <Button Content="Paste (replace)"
+                    Command="{Binding PasteCommand}"
+                    CommandParameter="{x:True}"
+                    Width="100"
+                    Grid.Column="2"/>
+          </Grid>
+        </Grid>
+
+        <StackPanel Orientation="Vertical" Spacing="10" Grid.Column="2" Grid.Row="1">
+          <Button Content="Remove selected" Command="{Binding RemoveSelectedCommand}"/>
+          <Button Content="Clear list" Command="{Binding ClearAllCommand}"/>
+        </StackPanel>
+      </Grid>
+    </Expander>
+  </Grid>
+</UserControl>
